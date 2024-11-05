@@ -40,13 +40,20 @@ val &= ~(0x3 << 0); /* 将bit1和bit0清零 */
 val |= (0x1 << 0); /* 将bit1和bit0设置为10 */
 write(val, GPIO_PUPDR_PI);
 
+#if 0
 /* 7. 默认输出低电平，打开LED灯 */
 val = readl(GPIO_BSRR_PI);
 val &= ~(0x1 << 16); /* 将bit16清零 */
 val |= (0x1 << 16); /* 将bit16设置为1 */
 write(val, GPIO_BSRR_PI);
-
-
+#endif
+#if 1
+/* 7. 默认输出高电平，关闭LED灯 */
+val = readl(GPIO_BSRR_PI);
+val &= ~(0x1 << 0); /* 将bit0清零 */
+val |= (0x1 << 0); /* 将bit0设置为1 */
+write(val, GPIO_BSRR_PI);
+#endif
 
 
 
