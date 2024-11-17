@@ -1,7 +1,7 @@
 <!--
  * @Date: 2024-11-08
  * @LastEditors: GoKo-Son626
- * @LastEditTime: 2024-11-16
+ * @LastEditTime: 2024-11-17
  * @FilePath: /1-STM32MP157/04-Device_tree.md
  * @Description: 
 -->
@@ -14,7 +14,8 @@
 ### 设备树相关
 1. linux设备树缘由：CUP和芯片的接口信息不再以代码的形式存在，而是以.dts文件存在，编译为.dtb文件，当linux内核启动时传递给linux内核，再变成paltform_device（和CPU的接口信息，管脚...）
 设备树结构示意图
-![设备树结构示意图](image.png)
+![structure_diagram-of-Device_tree](structure_diagram-of-Device_tree.png)
+// 
 - 树的主干就是系统总线，IIC 控制器、GPIO 控制器、SPI 控制器等都是接到系统主线上的分支。IIC 控制器有分为 IIC1 和 IIC2 两种，其中 IIC1 上接了 FT5206 和 AT24C02这两个 IIC 设备，IIC2 上只接了 MPU6050 这个设备。DTS 文件的主要功能就是按照图 23.1.1
 所示的结构来描述板子上的设备信息，
 1. 涉及文件：
@@ -120,7 +121,288 @@ name 属性，一些老的设备树文件可能会使用此属性。
 8、device_type 属性
 device_type 属性值为字符串，IEEE 1275 会用到此属性，用于描述设备的 FCode，但是设
 备树没有 FCode，所以此属性也被抛弃了。此属性只能用于 cpu 节点或者 memory 节点。
+9. 根节点 compatible 属性
+```c
+16 / {
+17 model = "STMicroelectronics STM32MP157C-DK2 Discovery Board";
+18 compatible = "st,stm32mp157d-atk", "st,stm32mp157";
+......
+41 };
+```
+通过根节点的 compatible 属性可以知道我们所使用的设备，一般第一个值描述了所使用的硬件设备名字，比如这里使用的是“stm32mp157d-atk”这个设备，第二个值描述了设备所使用的 SOC，比如这里使用的是“stm32mp157”这颗 SOC。Linux内核会通过根节点的 compoatible 属性查看是否支持此设备，如果支持的话设备就会启动 Linux内核。
+***使用设备树之前设备匹配方法***
+uboot 会向 Linux 内核传递一个叫做 machine id 的值，machine id
+也就是设备 ID，告诉 Linux 内核自己是个什么设备，看看 Linux 内核是否支持。Linux 内核是
+支持很多设备的，针对每一个设备(板子)，Linux内核都用MACHINE_START和MACHINE_END
+来定义一个 machine_desc 结构体来描述这个设备
+***使用设备树以后的设备匹配方法***
+当 Linux 内 核 引 入 设 备 树 以 后 就 不 再 使 用 MACHINE_START 了 ， 而 是 换 为 了
+DT_MACHINE_START。DT_MACHINE_START 也定义在文件 arch/arm/include/asm/mach/arch.h 
+里面
+**MACHINE_START 和 MACHINE_END 宏定义**
+81 #define MACHINE_START(_type,_name) \
+82 static const struct machine_desc __mach_desc_##_type \
+83 __used \
+84 __attribute__((__section__(".arch.info.init"))) = { \
+85 .nr = MACH_TYPE_##_type, \
+86 .name = _name,
+87
+88 #define MACHINE_END
+**DT_MACHINE_START 宏**
+91 #define DT_MACHINE_START(_name, _namestr) \
+92 static const struct machine_desc __mach_desc_##_name \
+93 __used \
+94 __attribute__((__section__(".arch.info.init"))) = { \
+95 .nr = ~0, \
+96 .name = _namestr,
+97
+98 #endif
+.nr 设置为~0。说明引入设备树以后不会再根据 machine 
+id 来检查 Linux 内核是否支持某个设备了。
+```c
+14 static const char *const stm32_compat[] __initconst = {
+15 "st,stm32f429",
+16 "st,stm32f469",
+17 "st,stm32f746",
+18 "st,stm32f769",
+19 "st,stm32h743",
+20 "st,stm32mp151",
+21 "st,stm32mp153",
+22 "st,stm32mp157",
+23 NULL
+24 };
+25
+26 DT_MACHINE_START(STM32DT, "STM32 (Device Tree Support)")
+27 .dt_compat = stm32_compat,
+28 #ifdef CONFIG_ARM_SINGLE_ARMV7M
+29 .restart = armv7m_restart,
+30 #endif
+31 MACHINE_END
+```
+machine_desc 结构体中有个.dt_compat 成员变量，此成员变量保存着本设备兼容属性，示
+例代码 23.3.4.5 中设置.dt_compat 为 stm32_compat，此表里面含有 Linux 内核所支持的 soc 兼容
+值。只要某个设备(板子)根节点“/”的 compatible 属性值与 stm32_compat 表中的任何一个值相
+等，那么就表示 Linux 内核支持此设备。
+***Linux 内核是如何根据设备树根节点的 compatible 属性来匹配出对应的 machine_desc***
+- Linux 内核调用 start_kernel 函数来启动内核，start_kernel 
+- 函数会调用setup_arch 函数来匹配 machine_desc，
+- setup_arch 函数定义在文件 arch/arm/kernel/setup.c 中，
+- 函数内容如下(有缩减):
+setup_arch 函数内容
+```c
+1076 void __init setup_arch(char **cmdline_p)
+1077 {
+1078 const struct machine_desc *mdesc;
+1079
+1080 setup_processor();
+1081 mdesc = setup_machine_fdt(__atags_pointer);
+1082 if (!mdesc)
+1083 mdesc = setup_machine_tags(__atags_pointer,
+__machine_arch_type);
+......
+1094 machine_desc = mdesc;
+1095 machine_name = mdesc->name;
+......
+1174 }
+```
+第 1081 行，调用 setup_machine_fdt 函数来获取匹配的 machine_desc，参数就是 atags 的首
+地址，也就是 uboot 传递给 Linux 内核的 dtb 文件首地址，setup_machine_fdt 函数的返回值就是
+找到的最匹配的 machine_desc。
+setup_machine_fdt 函数内容
+211 const struct machine_desc * __init setup_machine_fdt(unsigned int
+dt_phys)
+212 {
+213 const struct machine_desc *mdesc, *mdesc_best = NULL;
+......
+224 if (!dt_phys || !early_init_dt_verify(phys_to_virt(dt_phys)))
+225 return NULL;
+226
+227 mdesc = of_flat_dt_match_machine(mdesc_best,
+ arch_get_next_mach);
+......
+256 __machine_arch_type = mdesc->nr;
+257
+258 return mdesc;
+259 }
+第 227 行，调用函数 of_flat_dt_match_machine 来获取匹配的 machine_desc，参数 mdesc_best
+是 默 认 的 machine_desc ，参数 arch_get_next_mach 是 个 函 数 ， 此 函 数 定 义 在 定 义 在
+arch/arm/kernel/devtree.c 文件中。找到匹配的 machine_desc 的过程就是用设备树根节点的
+compatible 属性值和 Linux 内核中保存的所有 machine_desc 结构的. dt_compat 中的值比较，看
+看哪个相等，如果相等的话就表示找到匹配的 machine_desc，arch_get_next_mach 函数的工作就
+是获取 Linux 内核中下一个 machine_desc 结构体
+of_flat_dt_match_machine 函数内容
+815 const void * __init of_flat_dt_match_machine(const void
+*default_match,
+816 const void * (*get_next_compat)(const char * const**))
+817 {
+818 const void *data = NULL;
+819 const void *best_data = default_match;
+820 const char *const *compat;
+821 unsigned long dt_root;
+822 unsigned int best_score = ~1, score = 0;
+823
+824 **dt_root = of_get_flat_dt_root();**
+825 while ((data = get_next_compat(&compat))) {
+826 score = of_flat_dt_match(dt_root, compat);
+827 if (score > 0 && score < best_score) {
+828 best_data = data;
+829 best_score = score;
+830 }
+831 }
+.....
+850 pr_info("Machine model: %s\n",
+of_flat_dt_get_machine_name());
+851
+852 return best_data;
+853 }
+第 824 行，通过函数 of_get_flat_dt_root 获取设备树根节点。
+第 825~831 行，此循环就是查找匹配的 machine_desc 过程，第 826 行的 of_flat_dt_match 函
+数会将根节点 compatible 属性的值和每个 machine_desc 结构体中. dt_compat 的值进行比较，直
+至找到匹配的那个 machine_desc。
+![Looks_for-a_matching_machine_desc](Looks_for-a_matching_machine_desc.png)
+10. 向节点追加或修改内容
+假设现在有个六轴芯片fxls8471，fxls8471 要接到 STM32MP157D-ATK 开发板的 I2C1 接口上，那么相当于需要在 i2c1这个节点上添加一个 fxls8471 子节点。
+stm32mp151.dtsi 文件：
+```c
+590 i2c1: i2c@40012000 {
+591 compatible = "st,stm32mp15-i2c";
+592 reg = <0x40012000 0x400>;
+593 interrupt-names = "event", "error";
+594 interrupts-extended = <&exti 21 IRQ_TYPE_LEVEL_HIGH>,
+595 <&intc GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>;
+596 clocks = <&rcc I2C1_K>;
+597 resets = <&rcc I2C1_R>;
+598 #address-cells = <1>;
+599 #size-cells = <0>;
+600 dmas = <&dmamux1 33 0x400 0x80000001>,
+601     <&dmamux1 34 0x400 0x80000001>;
+602 dma-names = "rx", "tx";
+603 power-domains = <&pd_core>;
+604 st,syscfg-fmp = <&syscfg 0x4 0x1>;
+605 wakeup-source;
+606 status = "disabled";
+607 };
+```
+***直接添加子节点***
+607 //fxls8471 子节点
+608     fxls8471@1e {
+609         compatible = "fsl,fxls8471";
+610         reg = <0x1e>;
+611     };
+有个问题！stm32mp151.dtsi 是共有的设备树头文件
+直接在 i2c1 节点中添加 fxls8471 就相当于在其他的所有板子上都添加了 fxls8471 这个设备
+这里就要引入另外一个内容，那就是如何向节点追加数据，我们现在要解决的就是如何向
+i2c1 节点追加一个名为 fxls8471 的子节点，而且不能影响到其他使用到 stm32mp1 的板子。
 
+STM32MP157D-ATK 开发板使用的设备树文件为 stm32mp157d-atk.dts 和 stm32mp157d-atk.dtsi，
+因此我们需要在 stm32mp157d-atk.dts 文件中完成数据追加的内容，方式如下：
+示例代码 23.3.5.3 节点追加数据方法
+1 &i2c1 {
+2 /* 要追加或修改的内容 */
+3 };
+第 1 行，&i2c1 表示要访问 i2c1 这个 label 所对应的节点，也就是 stm32mp151.dtsi 中的
+“i2c1: i2c@40012000”。
+第 2 行，花括号内就是要向 i2c1 这个节点添加的内容，包括修改某些属性的值。
+打开 stm32mp157d-atk.dts，在根节点后添加以下代码：
+示例代码 23.3.5.4 向 i2c1 节点追加数据
+```c
+&i2c1 {
+pinctrl-names = "default", "sleep";
+pinctrl-0 = <&i2c1_pins_b>;
+pinctrl-1 = <&i2c1_pins_sleep_b>;
+status = "okay";
+clock-frequency = <100000>;
+
+fxls8471@1e {
+compatible = "fsl,fxls8471";
+reg = <0x1e>;
+position = <0>;
+interrupt-parent = <&gpioh>;
+interrupts = <6 IRQ_TYPE_EDGE_FALLING>;
+}; 
+};
+```
+示例代码 23.3.5.4 就是向 i2c1 节点添加/修改数据，比如第 5 行将 status 属性的值由原来的
+disabled 改为 okay。第 6 行的属性“clock-frequency”表示 i2c1 时钟为 100KHz。“clock-frequency”
+就是新添加的属性。
+第 8~14 行，i2c1 子节点 fxls8471，表示 I2C1 上连接的 fxls8471，“fxls8471”子节点里面描
+述了 fxls8471 这颗芯片的相关信息。
+
+### 3. 创建小型模板设备树
+
+在编写设备树之前要先定义一个设备，我们就以 STM32MP157 这个 SOC 为例，我们
+需要在设备树里面描述的内容如下：
+○1 、这个芯片是由两个 Cortex-A7 架构的 32 位 CPU 和 Cortex-M4 组成。
+○2 、STM32MP157 内部 sram，起始地址为 0x10000000，大小为 384KB(0x60000)。
+○3 、STM32MP157 内部 timers6，起始地址为 0x40004000，大小为 25.6KB(0x400)。
+○4 、STM32MP157 内部 spi2，起始地址为 0x4000b000，大小为 25.6KB(0x400)。
+○5 、STM32MP157 内部 usart2，起始地址为 0x4000e000，大小为 25.6KB(0x400)。
+○6 、STM32MP157 内部 i2c1，起始地址为 0x40012000，大小为 25.6KB(0x400)。
+***搭建一个仅含有根节点“/”的基础的框架***
+```c
+1 / {
+2 compatible = "st,stm32mp157d-atk", "st,stm32mp157";
+3 }；
+```
+***1、添加 cpus 节点***
+首先添加 CPU 节点，STM32MP157 采用 Cortex-A7 架构，先添加一个 cpus 节点，在 cpus
+节点下添加 cpu0 子节点和 cpu1 子节点
+1 / {
+2 compatible = "st,stm32mp157d-atk", "st,stm32mp157";
+3 /* cpus 节点 */ 
+4 cpus {
+5 #address-cells = <1>;
+6 #size-cells = <0>;
+7 
+8 /* CPU0 节点 */ 
+9 cpu0: cpu@0 {
+10 compatible = "arm,cortex-a7";
+11 device_type = "cpu";
+12 reg = <0>;
+13 };
+14 /* CPU1 节点 */ 
+15 cpu1: cpu@1 {
+16 compatible = "arm,cortex-a7";
+17 device_type = "cpu";
+18 reg = <1>;
+19 };
+20 };
+21 }；
+此节点用于描述 SOC 内部的所有 CPU
+
+2. 添加soc节点
+像 uart，iic 控制器等等这些都属于 SOC 内部外设，因此一般会创建一个叫做 soc 的父节点
+来管理这些 SOC 内部外设的子节点
+```c
+1 / {
+2 compatible = "st,stm32mp157d-atk", "st,stm32mp157";
+3 /* cpus 节点 */ 
+4 cpus {
+5 #address-cells = <1>;
+6 #size-cells = <0>;
+7
+8 /* CPU0 节点 */ 
+9 cpu0: cpu@0 {
+10 compatible = "arm,cortex-a7";
+11 device_type = "cpu";
+12 reg = <0>;
+13 };
+14 /* CPU1 节点 */ 
+15 cpu1: cpu@1 {
+16 compatible = "arm,cortex-a7";
+17 device_type = "cpu";
+18 reg = <1>;
+19 };
+20 };
+21 /* soc 节点 */ 
+22 soc {
+23 compatible = "simple-bus";
+24 #address-cells = <1>;
+25 #size-cells = <1>;
+26 ranges;
+27 }；
+28 }；
+```
 
 
 
