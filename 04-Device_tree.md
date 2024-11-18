@@ -1,7 +1,7 @@
 <!--
  * @Date: 2024-11-08
  * @LastEditors: GoKo-Son626
- * @LastEditTime: 2024-11-17
+ * @LastEditTime: 2024-11-18
  * @FilePath: /1-STM32MP157/04-Device_tree.md
  * @Description: 
 -->
@@ -87,41 +87,67 @@ status 属性看名字就知道是和设备状态有关的，status 属性值也
 表明设备不可操作，设备检测到了一系列的错误，而且设备也不大可能变得可
 操作。
 “fail-sss” 含义和“fail”相同，后面的 sss 部分是检测到的错误内容。
-#address-cells 和#size-cells 属性
-这两个属性的值都是无符号 32 位整形，#address-cells 和#size-cells 这两个属性可以用在任
-何拥有子节点的设备中，用于描述子节点的地址信息。#address-cells 属性值决定了子节点 reg 属
-性中地址信息所占用的字长(32 位)，#size-cells 属性值决定了子节点 reg 属性中长度信息所占的
-字长(32 位)。#address-cells 和#size-cells 表明了子节点应该如何编写 reg 属性值，一般 reg 属性
-都是和地址有关的内容，和地址相关的信息有两种：起始地址和地址长度，reg 属性的格式为：
-reg = <address1 length1 address2 length2 address3 length3……>
-5.reg属性
-，reg 属性的值一般是(address，length)对。reg 属性一般用于描
-述设备地址空间资源信息或者设备地址信息，比如某个外设的寄存器地址范围信息，或者 IIC
-器件的设备地址等，比
+4. #address-cells 和#size-cells 属性
+这两个属性的值都是无符号 32 位整形，#address-cells 和#size-cells 这两个属性可以用在**任何拥有子节点的设备**中，用于**描述子节点的地址信息**。#address-cells 属性值决定了子节点 reg 属性中**地址信息**所占用的字长(32 位)，#size-cells 属性值决定了子节点 reg 属性中**长度信息**所占的字长(32 位)。#address-cells 和#size-cells 表明了子节点应该如何编写 reg 属性值，一般 reg 属性都是和地址有关的内容，和地址相关的信息有两种：起始地址和地址长度，reg 属性的格式为：reg = <address1 length1 address2 length2 address3 length3……>
+5. reg属性
+reg 属性的值一般是(address，length)对。reg 属性一般用于描述设备地址空间资源信息或者设备地址信息，比如某个外设的寄存器地址范围信息，或者 IIC器件的设备地址等，比
+6. ranges属性
+ranges 属性值可以为空或者按照(child-bus-address,parent-bus-address,length)格式编写的数字
+矩阵，ranges 是一个地址映射/转换表，ranges 属性每个项目由子地址、父地址和地址空间长度
+这三部分组成：
+child-bus-address：子总线地址空间的物理地址，由父节点的#address-cells 确定此物理地址
+所占用的字长。
+parent-bus-address：父总线地址空间的物理地址，同样由父节点的#address-cells 确定此物
+理地址所占用的字长。
+length：子地址空间的长度，由父节点的#size-cells 确定此地址长度所占用的字长。
+如果 ranges 属性值为空值，说明子地址空间和父地址空间完全相同，不需要进行地址转换
+4,5,6属性相关代码举例:
+```c
+parent_sram: sram@2ffff000 {
+    compatible = "mmio-sram";
+    reg = <0x2ffff000 0x1000>;
+    #address-cells = <1>;
+    #size-cells = <1>;
+    ranges = <0 0x2ffff000 0x1000>;
 
-第八行
-`reg = <0x0 0x60000>;`
+    cabinet1: shared_mem1@0 {
+        reg = <0x0 0x100>; // 小柜子1: 偏移地址0, 大小256字节
+    };
 
-解释：
-- `reg` 定义了 `sram` 设备的子地址空间：
-  - 子地址空间的起始地址：`0x0`
-  - 地址范围长度：`0x60000`（384KB）
+    cabinet2: shared_mem2@100 {
+        reg = <0x100 0x200>; // 小柜子2: 偏移地址256, 大小512字节
+    };
+};
+```
+解释这个 Device Tree 结构
+**父节点：parent_sram**
+- reg = <0x2ffff000 0x1000>：这个父节点的起始地址是 0x2ffff000，大小为 0x1000 字节（4096 字节）。
+- #address-cells = <1>：每个子节点 reg 属性中描述地址部分占 1 个单元（32 位）。
+- #size-cells = <1>：每个子节点 reg 属性中描述大小部分占 1 个单元（32 位）。
+- ranges = <0 0x2ffff000 0x1000>：父节点的 0x2ffff000 地址空间被映射到子节点的地址空间起点 0，大小为 0x1000 字节。
+**子节点：两个小柜子**
+- cabinet1 子节点
+shared_mem1@0：名字为 shared_mem1，@0 表示它的偏移地址是 0。
+reg = <0x0 0x100>：偏移地址是 0x0，大小为 0x100 字节（256 字节）。
+- cabinet2 子节点
+shared_mem2@100：名字为 shared_mem2，@100 表示它的偏移地址是 0x100（十六进制 256）。
+reg = <0x100 0x200>：偏移地址是 0x100（256 字节），大小为 0x200 字节（512 字节）。
+**形象的解释**
+想象一下，我们有一个大房间（parent_sram）用来存放东西，大小是 4096 字节（0x1000）。我们在这个房间里放了两个小柜子：
 
-第六行
-ranges = <0 0x10000000 0x100000>;
+- 小柜子1（cabinet1） 放在房间的起点，位置 0，它的大小是 256 字节（0x100）。这就像你把一个小柜子放在房间的左边，占据一小部分空间。
+- 小柜子2（cabinet2） 放在房间的偏移 256 字节的位置，大小是 512 字节（0x200）。这个柜子比第一个柜子大一些，占据更多的空间。
+**地址计算**
+- 小柜子1 的实际物理地址：从 parent_sram 的起始地址 0x2ffff000 开始，偏移量是 0x0，所以实际地址是 0x2ffff000 + 0x0 = 0x2ffff000。
+- 小柜子2 的实际物理地址：从 parent_sram 的起始地址 0x2ffff000 开始，偏移量是 0x100，所以实际地址是 0x2ffff000 + 0x100 = 0x2ffff100。
 
-含义是：
-子地址空间的起始地址：0
-父地址空间的起始地址：0x10000000
-映射范围大小：0x100000（1MB）
-
-7、name 属性
+1. name 属性
 name 属性值为字符串，name 属性用于记录节点名字，name 属性已经被弃用，不推荐使用
 name 属性，一些老的设备树文件可能会使用此属性。
 8、device_type 属性
 device_type 属性值为字符串，IEEE 1275 会用到此属性，用于描述设备的 FCode，但是设
 备树没有 FCode，所以此属性也被抛弃了。此属性只能用于 cpu 节点或者 memory 节点。
-9. 根节点 compatible 属性
+1. 根节点 compatible 属性
 ```c
 16 / {
 17 model = "STMicroelectronics STM32MP157C-DK2 Discovery Board";
@@ -260,7 +286,7 @@ of_flat_dt_get_machine_name());
 数会将根节点 compatible 属性的值和每个 machine_desc 结构体中. dt_compat 的值进行比较，直
 至找到匹配的那个 machine_desc。
 ![Looks_for-a_matching_machine_desc](Looks_for-a_matching_machine_desc.png)
-10. 向节点追加或修改内容
+1.  向节点追加或修改内容
 假设现在有个六轴芯片fxls8471，fxls8471 要接到 STM32MP157D-ATK 开发板的 I2C1 接口上，那么相当于需要在 i2c1这个节点上添加一个 fxls8471 子节点。
 stm32mp151.dtsi 文件：
 ```c
@@ -375,38 +401,103 @@ disabled 改为 okay。第 6 行的属性“clock-frequency”表示 i2c1 时钟
 来管理这些 SOC 内部外设的子节点
 ```c
 1 / {
-2 compatible = "st,stm32mp157d-atk", "st,stm32mp157";
-3 /* cpus 节点 */ 
-4 cpus {
-5 #address-cells = <1>;
-6 #size-cells = <0>;
+2       compatible = "st,stm32mp157d-atk", "st,stm32mp157";
+3       /* cpus 节点 */ 
+4       cpus {
+5               #address-cells = <1>;
+6               #size-cells = <0>;
 7
-8 /* CPU0 节点 */ 
-9 cpu0: cpu@0 {
-10 compatible = "arm,cortex-a7";
-11 device_type = "cpu";
-12 reg = <0>;
-13 };
-14 /* CPU1 节点 */ 
-15 cpu1: cpu@1 {
-16 compatible = "arm,cortex-a7";
-17 device_type = "cpu";
-18 reg = <1>;
-19 };
-20 };
-21 /* soc 节点 */ 
-22 soc {
-23 compatible = "simple-bus";
-24 #address-cells = <1>;
-25 #size-cells = <1>;
-26 ranges;
-27 }；
+8               /* CPU0 节点 */ 
+9               cpu0: cpu@0 {
+10                      compatible = "arm,cortex-a7";
+11                      device_type = "cpu";
+12                      reg = <0>;
+13              };
+14              /* CPU1 节点 */ 
+15              cpu1: cpu@1 {
+16                      compatible = "arm,cortex-a7";
+17                      device_type = "cpu";
+18                      reg = <1>;
+19              };
+20      };
+21      /* soc 节点 */
+22      soc {
+23              compatible = "simple-bus";
+24              #address-cells = <1>;
+25              #size-cells = <1>;
+26              ranges;
+27      }；
 28 }；
 ```
+第 22~27 行，soc 节点，soc 节点设置#address-cells = <1>，#size-cells = <1>，这样 soc 子节
+点的 reg 属性中起始地占用一个字长，地址空间长度也占用一个字长。
+第 26 行，ranges 属性，ranges 属性为空，说明子空间和父空间地址范围相同。
 
+3. 添加 sram 节点
+sram 是 STM32MP157 内部 RAM，M4 内核会用到 SRAM4。sram
+是 soc 节点的子节点。sram 起始地址为 0x10000000，大小为 384KB
+```c
+21 /* soc 节点 */
+22      soc {
+23              compatible = "simple-bus";
+24              #address-cells = <1>;
+25              #size-cells = <1>;
+26              ranges;
+27              /* sram 节点 */
+28              sram: sram@10000000 {
+29              compatible = "mmio-sram";
+30              reg = <0x10000000 0x60000>;
+31              ranges = <0 0x10000000 0x60000>;
+32      };
+```
+4. 添加 timers6、spi2、usart2 和 i2c1 这四个子节点
+```c
+22      soc {
+23              compatible = "simple-bus";
+24              #address-cells = <1>;
+25              #size-cells = <1>;
+26              ranges;
 
+27              /* sram 节点 */
+28              sram: sram@10000000 {
+29                      compatible = "mmio-sram";
+30                      reg = <0x10000000 0x60000>;
+31                      #address-cells = <1>;
+32                      #size-cells = <1>;
+33                      ranges = <0 0x10000000 0x60000>;
+34              };
+35              /* timers6 节点 */
+36              timers6: timer@40004000 {
+37                      #address-cells = <1>;
+38                      #size-cells = <0>;
+39                      compatible = "st,stm32-timers";
+40                      reg = <0x40004000 0x400>;
+41              };
+42              /* spi2 节点 */
+43              spi2: spi@4000b000 {
+44                      #address-cells = <1>;
+45                      #size-cells = <0>;
+46                      compatible = "st,stm32h7-spi";
+47                      reg = <0x4000b000 0x400>;
+48              };
+49              /* usart2 节点 */
+50              usart2: serial@4000e000 {
+51                      compatible = "st,stm32h7-uart";
+52                      reg = <0x4000e000 0x400>;
+53              };
+54              /* i2c1 节点 */
+55                      i2c1: i2c@40012000 {
+56                      compatible = "st,stm32mp15-i2c";
+57                      reg = <0x40012000 0x400>;
+58              };
+59      };
+```
+### 4. 设备树在内核中的体现
 
+Linux 内核启动的时候会解析设备树中各个节点的信息，并且在根文件系统的/proc/device-
+tree 目录下根据节点名字创建不同文件夹
 
+675
 
 
 
