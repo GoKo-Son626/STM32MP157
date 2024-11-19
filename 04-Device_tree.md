@@ -1,7 +1,7 @@
 <!--
  * @Date: 2024-11-08
  * @LastEditors: GoKo-Son626
- * @LastEditTime: 2024-11-18
+ * @LastEditTime: 2024-11-19
  * @FilePath: /1-STM32MP157/04-Device_tree.md
  * @Description: 
 -->
@@ -499,6 +499,26 @@ tree 目录下根据节点名字创建不同文件夹
 
 675
 
+=============注意：首次打开面板浏览器将提示不安全=================
+
+ 请选择以下其中一种方式解决不安全提醒
+ 1、下载证书，地址：https://dg2.bt.cn/ssl/baota_root.pfx  双击安装,密码【www.bt.cn】
+ 2、点击【高级】-【继续访问】或【接受风险并继续】访问
+ 教程：https://www.bt.cn/bbs/thread-117246-1-1.html
+ mac用户请下载使用此证书：https://dg2.bt.cn/ssl/baota_root.crt
+
+========================面板账户登录信息==========================
+
+ 【云服务器】请在安全组放行 17427 端口
+ 外网面板地址: https://39.105.132.7:17427/2976494b
+ 内网面板地址: https://172.17.77.182:17427/2976494b
+ username: 9kzhifeq
+ password: ed1fe99e
+
+ 浏览器访问以下链接，添加宝塔客服
+ https://www.bt.cn/new/wechat_customer
+==================================================================
+Time consumed: 2 Minute!
 
 
 
