@@ -494,36 +494,215 @@ sram 是 STM32MP157 内部 RAM，M4 内核会用到 SRAM4。sram
 ```
 ### 4. 设备树在内核中的体现
 
-Linux 内核启动的时候会解析设备树中各个节点的信息，并且在根文件系统的/proc/device-
-tree 目录下根据节点名字创建不同文件夹
+Linux 内核启动的时候会解析设备树中各个节点的信息，并且在根文件系统的/proc/device-tree 目录下根据节点名字创建不同文件夹
 
-675
+1. 根节点“/”各个属性
+根节点属性属性表现为一个个的文件，比如图 23.5.1 中的“#address-cells”、
+“#size-cells”、“compatible”、“model”和“name”这 5 个文件，它们在设备树中就是根节点的
+5 个属性。既然是文件那么肯定可以查看其内容，输入 cat 命令来查看 model 和 compatible 这两
+个文件的内容
+2. 根节点“/”各子节点
+图 23.5.1 中各个文件夹就是根节点“/”的各个子节点，比如“aliases”、“reboot”、“chosen”
+和“cpus”等等。大家可以查看一下 stm32mp157d-atk.dts 和 stm32mp157d-atk.dts 所引用的.dtsi
+文件，看看根节点的子节点都有哪些，是否和图 23.5.1 中的一致。
+/proc/device-tree 目录就是设备树在根文件系统中的体现，同样是按照树形结构组织的，进
+入/proc/device-tree/soc 目录中就可以看到 soc 节点的所有子节点，如图 23.5.3 所示：
+和根节点“/”一样，图 23.5.3 中的所有文件分别为 soc 节点的属性文件和子节点文件夹。
 
-=============注意：首次打开面板浏览器将提示不安全=================
+### 5. 特殊节点
 
- 请选择以下其中一种方式解决不安全提醒
- 1、下载证书，地址：https://dg2.bt.cn/ssl/baota_root.pfx  双击安装,密码【www.bt.cn】
- 2、点击【高级】-【继续访问】或【接受风险并继续】访问
- 教程：https://www.bt.cn/bbs/thread-117246-1-1.html
- mac用户请下载使用此证书：https://dg2.bt.cn/ssl/baota_root.crt
+1. aliases 子节点
+打开 stm32mp157d-atk.dts 文件，aliases 节点内容如下所示：
+```c
+24 aliases {
+25 serial0 = &uart4;
+26 };
+```
+单词 aliases 的意思是“别名”，因此 aliases 节点的主要功能就是定义别名，定义别名的目
+的就是为了方便访问节点。不过我们一般会在节点命名的时候会加上 label，然后通过&label 来
+访问节点，这样也很方便，而且设备树里面大量的使用&label 的形式来访问节点。
 
-========================面板账户登录信息==========================
+2 chosen 子节点
+chosen 并不是一个真实的设备，chosen 节点主要是为了 uboot 向 Linux 内核传递数据，重
+点是 bootargs 参数。一般.dts 文件中 chosen 节点通常为空或者内容很少，stm32mp157d-atk.dts
+中 chosen 节点内容如下所示：
+示例代码 23.6.2.1 chosen 子节点
+20 chosen {
+21 stdout-path = "serial0:115200n8";
+22 };
+从示例代码 23.6.2.1 中可以看出，chosen 节点仅仅设置了属性“stdout-path”，表示标准输
+出使用 serial0，而 aliases 已经设置了 serial0 为 uart4，所以开发板启动以后使用 UART4 作为默
+认终端。但是当我们进入到/proc/device-tree/chosen 目录里面，会发现多了 bootargs 这个属性，
+2 chosen 子节点
+chosen 并不是一个真实的设备，chosen 节点主要是为了 uboot 向 Linux 内核传递数据，重
+点是 bootargs 参数。一般.dts 文件中 chosen 节点通常为空或者内容很少，stm32mp157d-atk.dts
+中 chosen 节点内容如下所示：
+示例代码 23.6.2.1 chosen 子节点
+20 chosen {
+21 stdout-path = "serial0:115200n8";
+22 };
+从示例代码 23.6.2.1 中可以看出，chosen 节点仅仅设置了属性“stdout-path”，表示标准输
+出使用 serial0，而 aliases 已经设置了 serial0 为 uart4，所以开发板启动以后使用 UART4 作为默
+认终端。但是当我们进入到/proc/device-tree/chosen 目录里面，会发现多了 bootargs 这个属性，
 
- 【云服务器】请在安全组放行 17427 端口
- 外网面板地址: https://39.105.132.7:17427/2976494b
- 内网面板地址: https://172.17.77.182:17427/2976494b
- username: 9kzhifeq
- password: ed1fe99e
+可以看出，bootargs 这个文件的内容为“console=ttySTM0,115200……”，这个
+就是我们在 uboot 中设置的 bootargs 环境变量，
 
- 浏览器访问以下链接，添加宝塔客服
- https://www.bt.cn/new/wechat_customer
-==================================================================
-Time consumed: 2 Minute!
+既然 chosen 节点的 bootargs 属性不是我们在设备树里面设置的，那么只有一种可能，那就
+是 uboot 自己在 chosen 节点里面添加了 bootargs 属性！并且设置 bootargs 属性的值为 bootargs
+环境变量的值。因为在启动 Linux 内核之前，只有 uboot 知道 bootargs 环境变量的值，并且 uboot
+也知道.dtb 设备树文件在 DRAM 中的位置，因此 uboot 的“作案”嫌疑最大。在 uboot 源码中
+全局搜索“chosen”这个字符串，看看能不能找到一些蛛丝马迹。果然不出所料，在
+common/fdt_support.c 文件中发现了“chosen”的身影，fdt_support.c 文件中有个 fdt_chosen 函
+数，此函数内容如下所示：
+
+275 int fdt_chosen(void *fdt)
+276 {
+277 int nodeoffset;
+278 int err;
+279 char *str; /* used to set string properties */
+280
+281 err = fdt_check_header(fdt);
+282 if (err < 0) {
+283 printf("fdt_chosen: %s\n", fdt_strerror(err));
+284 return err;
+285 }
+286
+287 /* find or create "/chosen" node. */
+288 nodeoffset = fdt_find_or_add_subnode(fdt, 0, "chosen");
+289 if (nodeoffset < 0)
+290 return nodeoffset;
+291
+292 str = getenv("bootargs");
+293 if (str) {
+294 err = fdt_setprop(fdt, nodeoffset, "bootargs", str,
+295 strlen(str) + 1);
+296 if (err < 0) {
+297 printf("WARNING: could not set bootargs %s.\n",
+298 fdt_strerror(err));
+299 return err;
+300 }
+301 }
+302
+303 return fdt_fixup_stdout(fdt, nodeoffset);
+304 }
+
+images
+
+图 23.6.2.4 中框起来的部分就是函数 do_bootm_linux 函数的执行流程，也就是说
+do_bootm_linux 函数会通过一系列复杂的调用，最终通过 fdt_chosen 函数在 chosen 节点中加入
+了 bootargs 属性。而我们通过 bootz 命令启动 Linux 内核的时候会运行 do_bootm_linux 函数，
+至此，真相大白，一切事情的源头都源于如下命令：
+bootm c2000000 – c4000000
+当我们输入上述命令并执行以后，do_bootm 函数就会执行，然后一切就按照图 23.6.2.4 中
+所示的流程开始运行。
+
+### 6. Linux 内核解析 DTB 文件
+Linux 内核在启动的时候会解析 DTB 文件，然后在/proc/device-tree 目录下生成相应的设备
+树节点文件。接下来我们简单分析一下 Linux 内核是如何解析 DTB 文件的
+
+images
+
+在 start_kernel 函数中完成了设备树节点解析的工作，最终实际工
+作的函数为 unflatten_dt_node。
+
+### 7. 绑定信息文档
+设备树是用来描述板子上的设备信息的，不同的设备其信息不同，反映到设备树中就是属
+性不同。那么我们在设备树中添加一个硬件对应的节点的时候从哪里查阅相关的说明呢？在
+Linux 内核源码中有详细的 TXT 文档描述了如何添加节点，这些 TXT 文档叫做绑定文档，路
+径为：Linux 源码目录/Documentation/devicetree/bindings
 
 
+比如我们现在要想在 STM32MP157 这颗 SOC 的 I2C 下添加一个节点，那么就可以查看
+Documentation/devicetree/bindings/i2c/i2c-stm32.txt，此文档详细的描述了 STM32MP1 系列的
+SOC 如何在设备树中添加 I2C 设备节点，文档内容如下所示：
+* I2C controller embedded in STMicroelectronics STM32 I2C platform
+Required properties:
+- compatible: Must be one of the following
+ - "st,stm32f4-i2c"
+- "st,stm32f7-i2c"
+ - "st,stm32mp15-i2c"
+- reg: Offset and length of the register set for the device
+- interrupts: Must contain the interrupt id for I2C event and then the
+ interrupt id for I2C error.
+- resets: Must contain the phandle to the reset controller.
+- clocks: Must contain the input clock of the I2C instance.
+- A pinctrl state named "default" must be defined to set pins in mode 
+ of operation for I2C transfer. An optional pinctrl state named "sleep"
+ has to be defined as well as to put I2C in low power mode in suspend 
+mode.
+- #address-cells = <1>;
+- #size-cells = <0>;
+Optional properties:
+- clock-frequency: Desired I2C bus clock frequency in Hz. If not 
+specified,
+ the default 100 kHz frequency will be used.
+ For STM32F4 SoC Standard-mode and Fast-mode are supported, possible 
+values are
+ 100000 and 400000.
+ For STM32F7, STM32H7 and STM32MP1 SoCs, Standard-mode, Fast-mode and 
+Fast-mode
+ Plus are supported, possible values are 100000, 400000 and 1000000.
+- dmas: List of phandles to rx and tx DMA channels. Refer to stm32-
+dma.txt.
+- dma-names: List of dma names. Valid names are: "rx" and "tx".
+- i2c-scl-rising-time-ns: I2C SCL Rising time for the board (default:
+25)
+ For STM32F7, STM32H7 and STM32MP1 only.
+- i2c-scl-falling-time-ns: I2C SCL Falling time for the board (default:
+10)
+ For STM32F7, STM32H7 and STM32MP1 only.
+ I2C Timings are derived from these 2 values
+- st,syscfg-fmp: Use to set Fast Mode Plus bit within SYSCFG when Fast 
+Mode
+ Plus speed is selected by slave.
+ 1st cell: phandle to syscfg
+ 2nd cell: register offset within SYSCFG
+ 3rd cell: register bitmask for FMP bit
+ For STM32F7, STM32H7 and STM32MP1 only.
+- st,smbus-alert: enable the SMBus Alert feature
+- st,smbus-host-notify: enable the SMBus Host-Notify feature
+- wakeup-source: Enable the possibility to use the I2C as a wakeupsource
+ For STM32H7 and STM32MP1 only.
+Example:
+ i2c@40005400 {
+ compatible = "st,stm32f4-i2c";
+ #address-cells = <1>;
+ #size-cells = <0>;
+ reg = <0x40005400 0x400>;
+ interrupts = <31>,
+ <32>;
+ resets = <&rcc 277>;
+ clocks = <&rcc 0 149>;
+ pinctrl-0 = <&i2c1_sda_pin>, <&i2c1_scl_pin>;
+ pinctrl-names = "default";
+ };
+ i2c@40005400 {
+ compatible = "st,stm32f7-i2c";
+ #address-cells = <1>;
+ #size-cells = <0>;
+ reg = <0x40005400 0x400>;
+ interrupts = <31>,
+ <32>;
+ resets = <&rcc STM32F7_APB1_RESET(I2C1)>;
+ clocks = <&rcc 1 CLK_I2C1>;
+ pinctrl-0 = <&i2c1_sda_pin>, <&i2c1_scl_pin>;
+ pinctrl-1 = <&i2c1_sda_pin_sleep>, <&i2c1_scl_pin_sleep>;
+ pinctrl-names = "default", "sleep";
+ st,syscfg-fmp = <&syscfg 0x4 0x1>;
+ st,syscfg-fmp-clr = <&syscfg 0x44 0x1>;
+ };
 
+### 8. 设备树常用 OF 操作函数
 
+设备树描述了设备的详细信息，这些信息包括数字类型的、字符串类型的、数组类型的，
+我们在编写驱动的时候需要获取到这些信息。比如设备树使用 reg 属性描述了某个外设的寄存
+器地址为 0X02005482，长度为 0X400，我们在编写驱动的时候需要获取到 reg 属性的
+0X02005482 和 0X400 这两个值，然后初始化外设。Linux 内核给我们提供了一系列的函数来获
+取设备树中的节点或者属性信息，这一系列的函数都有一个统一的前缀“of_”，所以在很多资
+料里面也被叫做 OF 函数。这些 OF 函数原型都定义在 include/linux/of.h 文件中。
 
+### 9. OF函数
 
 
 
