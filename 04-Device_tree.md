@@ -1,7 +1,7 @@
 <!--
  * @Date: 2024-11-08
  * @LastEditors: GoKo-Son626
- * @LastEditTime: 2024-11-19
+ * @LastEditTime: 2024-11-20
  * @FilePath: /1-STM32MP157/04-Device_tree.md
  * @Description: 
 -->
@@ -11,7 +11,7 @@
 > [设备树官网](www.devicetreee.rog)
 > [语法入门文档](https://elinux.org/Device_Tree_Usage)
 
-### 设备树相关
+### 1. 设备树相关
 1. linux设备树缘由：CUP和芯片的接口信息不再以代码的形式存在，而是以.dts文件存在，编译为.dtb文件，当linux内核启动时传递给linux内核，再变成paltform_device（和CPU的接口信息，管脚...）
 设备树结构示意图
 ![structure_diagram-of-Device_tree](structure_diagram-of-Device_tree.png)
@@ -25,7 +25,7 @@
 -  dtb:编译设备树源码所得文件
 -  dtc工具源码:scripts/dtc/
 
-### DTS语法
+### 2. DTS语法
 1. .dts文件
 以 stm32mp157d-atk.dts 这个文件为例来讲解一下 DTS 语法。关于设备树详细
 的语法规则请参考《Devicetree SpecificationV0.2.pdf》和《Power_ePAPR_APPROVED_v1.12.pdf》
@@ -286,6 +286,7 @@ of_flat_dt_get_machine_name());
 数会将根节点 compatible 属性的值和每个 machine_desc 结构体中. dt_compat 的值进行比较，直
 至找到匹配的那个 machine_desc。
 ![Looks_for-a_matching_machine_desc](Looks_for-a_matching_machine_desc.png)
+
 1.  向节点追加或修改内容
 假设现在有个六轴芯片fxls8471，fxls8471 要接到 STM32MP157D-ATK 开发板的 I2C1 接口上，那么相当于需要在 i2c1这个节点上添加一个 fxls8471 子节点。
 stm32mp151.dtsi 文件：
@@ -587,7 +588,7 @@ common/fdt_support.c 文件中发现了“chosen”的身影，fdt_support.c 文
 303 return fdt_fixup_stdout(fdt, nodeoffset);
 304 }
 
-images
+![alt text](d92dabe1bd1560651de9ca9e88b62f0.png)
 
 图 23.6.2.4 中框起来的部分就是函数 do_bootm_linux 函数的执行流程，也就是说
 do_bootm_linux 函数会通过一系列复杂的调用，最终通过 fdt_chosen 函数在 chosen 节点中加入
@@ -601,7 +602,7 @@ bootm c2000000 – c4000000
 Linux 内核在启动的时候会解析 DTB 文件，然后在/proc/device-tree 目录下生成相应的设备
 树节点文件。接下来我们简单分析一下 Linux 内核是如何解析 DTB 文件的
 
-images
+![alt text](image.png)
 
 在 start_kernel 函数中完成了设备树节点解析的工作，最终实际工
 作的函数为 unflatten_dt_node。
