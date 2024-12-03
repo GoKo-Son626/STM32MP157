@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+        ],
+        "settings": {
+                "files.associations": {
+                        "unistd.h": "c",
+                        "module.h": "c",
+                        "types.h": "c",
+                        "kernel.h": "c",
+                        "gpio.h": "c",
+                        "stdio.h": "c"
+                }
+        }
+}
