@@ -1,3 +1,10 @@
+<!--
+ * @Date: 2024-12-06
+ * @LastEditors: GoKo-Son626
+ * @LastEditTime: 2024-12-11
+ * @FilePath: /1-STM32MP157/09-Interrupt.md
+ * @Description: 
+-->
 # Interrupt
 
 >0.在裸机中使用中断我们需要做一大堆的工作,比如配置寄存器,使能IRQ等等。但是Linux内核提供了完善的中断框架,我们只需要申请中断,然后注册中断处理函数即可,使用非常方便,不需要一系列复杂的寄存器配置。
@@ -19,7 +26,7 @@
 函数可能会导致睡眠,因此不能在中断上下文或者其他禁止睡眠的代码段中使用request_irq函
 数。request_irq函数会激活(使能)中断,所以不需要我们手动去使能中断
 
-<divstyle="text-align:center;font-weight:bold;">
+<div style="text-align:center;font-weight:bold;">
 常用的中断标志
 </div>
 
