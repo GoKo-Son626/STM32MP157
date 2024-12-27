@@ -172,5 +172,61 @@ static int __rtc_read_time(struct rtc_device *rtc, struct rtc_time *tm)
     return err;
 }
 ```
+- 94 行可以看出，__rtc_read_time 函数会通过调用 rtc_class_ops 中的 read_time 成员变量来从 RTC 设备中获取当前时间。rtc_dev_ioctl 函数对其他的命令处理都是类似的，比如RTC_ALM_READ 命令会通过 rtc_read_alarm 函数获取到闹钟值，而 rtc_read_alarm 函数经过层层调用，最终会调用 rtc_class_ops 中的 read_alarm 函数来获取闹钟值
 
+**Linux 内核中 RTC 驱动调用流程**
+![RTC_Driver-CALL](File/images/RTC_Driver-CALL.png)
 
+当 rtc_class_ops 准备好以后需要将其注册到 Linux 内核中，这里我们可以使用rtc_device_register函数完成注册工作。此函数会申请一个rtc_device并且初始化这个rtc_device，
+最后向调用者返回这个 rtc_device，此函数原型如下：
+```c
+struct rtc_device *rtc_device_register(const char *name, 
+        const struct rtc_class_ops *ops,
+        struct module *owner)
+        struct device *dev,
+```
+函数参数和返回值含义如下：
+name：设备名字。
+dev：设备。
+ops：RTC 底层驱动函数集。
+owner：驱动模块拥有者。
+返回值：注册成功的话就返回 rtc_device，错误的话会返回一个负值。
+当卸载 RTC 驱动的时候需要调用 rtc_device_unregister 函数来注销注册的 rtc_device，函数
+原型如下：
+void rtc_device_unregister(struct rtc_device *rtc)
+函数参数和返回值含义如下：
+rtc：要删除的 rtc_device。
+返回值：无。
+还有另外一对 rtc_device 注册函数 devm_rtc_device_register 和 devm_rtc_device_unregister，
+分别为注册和注销 rtc_device。
+
+### 2. 内部RTC驱动分析
+```c
+1746 rtc: rtc@5c004000 {
+1747    compatible = "st,stm32mp1-rtc";
+1748    reg = <0x5c004000 0x400>;
+1749    clocks = <&scmi0_clk CK_SCMI0_RTCAPB>,
+1750            <&scmi0_clk CK_SCMI0_RTC>;
+1751    clock-names = "pclk", "rtc_ck";
+1752    interrupts-extended = <&exti 19 IRQ_TYPE_LEVEL_HIGH>;
+1753    status = "disabled";
+1754 };
+```
+- 驱动也是使用标准的platform框架
+
+### 3. RTC时间查看与设置
+
+1. 使能内部RTC
+```c
+&rtc {
+        status = "okay";
+};
+```
+2. 查看时间
+> date
+3. 相关命令
+> date --help
+4. 设置时间"2021年5月2号 18:53:00"
+> date -s "2021-05-02 18:53:00"
+5. 将系统时间写入到RTC里面
+> hwclock -w
